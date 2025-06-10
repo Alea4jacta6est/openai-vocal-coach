@@ -11,11 +11,9 @@ from textual.containers import Container
 from textual.reactive import reactive
 from textual.widgets import Button, RichLog, Static
 from typing_extensions import override
-from dotenv import load_dotenv
 
 from agents.voice import StreamedAudioInput, VoicePipeline
 
-load_dotenv()
 
 if TYPE_CHECKING:
     # For type checking, use the relative import
