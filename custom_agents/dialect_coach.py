@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from agents import Agent, function_tool
 from typing import List, Callable
 import yaml
+from gradio import ChatMessage
 
 
 class TwisterResponse(BaseModel):
@@ -46,10 +47,43 @@ def _load_prompt(fname="prompts/dialect_coach_prompt.yml") -> str:
 
 system_prompt, model_name = _load_prompt()
 
-dialect_agent = Agent(
+# dialect_agent = Agent(
+#     name="DialectCoach",
+#     instructions=system_prompt,
+#     model=model_name,
+#     tools=[get_twisters],
+#     output_type=TwisterResponse,
+# )
+# dialect_agent.py  (only the new code is shown)
+from gradio import ChatMessage
+from agents import Agent, function_tool
+
+
+class DialectAgent(Agent):
+    async def run(self, user_message: str):
+        """Runs the normal Agent logic, then converts the Pydantic
+        model to a ChatMessage so Gradio is happy."""
+        run = await super().run(user_message)
+
+        # The model you declared in output_type
+        tw: TwisterResponse = run.final_output
+
+        run.final_output = ChatMessage(
+            content=tw.human_readable_response,
+            metadata={
+                "language": tw.language,
+                "improvements": tw.improvements,
+                "twisters": tw.twisters,
+                "reason": tw.reason,
+            },
+        )
+        return run
+
+
+dialect_agent = DialectAgent(
     name="DialectCoach",
     instructions=system_prompt,
     model=model_name,
     tools=[get_twisters],
-    output_type=TwisterResponse,
+    # output_type=TwisterResponse,   # keep it – we still parse JSON
 )

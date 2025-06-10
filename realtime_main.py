@@ -11,21 +11,23 @@ from textual.containers import Container
 from textual.reactive import reactive
 from textual.widgets import Button, RichLog, Static
 from typing_extensions import override
-
+from workflows.my_workflow import MyWorkflow
 from agents.voice import StreamedAudioInput, VoicePipeline
+from dotenv import load_dotenv
 
-
-if TYPE_CHECKING:
-    # For type checking, use the relative import
-    from workflows.my_workflow import MyWorkflow
-else:
-    # At runtime, try both import styles
-    try:
-        # Try relative import first (when used as a package)
-        from workflows.my_workflow import MyWorkflow
-    except ImportError:
-        # Fall back to direct import (when run as a script)
-        from workflows.my_workflow import MyWorkflow
+load_dotenv()
+# Import MyWorkflow class - handle both module and package use cases
+# if TYPE_CHECKING:
+#     # For type checking, use the relative import
+#     from .workflows.my_workflow import MyWorkflow
+# else:
+#     # At runtime, try both import styles
+#     try:
+#         # Try relative import first (when used as a package)
+#         from .my_workflow import MyWorkflow
+#     except ImportError:
+#         # Fall back to direct import (when run as a script)
+#         from my_workflow import MyWorkflow
 
 CHUNK_LENGTH_S = 0.05  # 100ms
 SAMPLE_RATE = 24000

@@ -54,5 +54,5 @@ voice_coach_agent = Agent(
     instructions=system_prompt,
     model=model_name,
     tools=[get_vocal_exercises],
-    output_type=VoiceCoachResponse,
+    # output_type=VoiceCoachResponse,
 )

@@ -6,11 +6,12 @@ import os
 
 BASE_URL = "https://www.tongue-twister.net"
 
+
 def fetch_index():
     resp = requests.get(BASE_URL)
     resp.encoding = resp.apparent_encoding
-    html = resp.content.decode('utf-8', 'ignore')
-    soup = BeautifulSoup(html, 'html.parser', from_encoding='utf-8')
+    html = resp.content.decode("utf-8", "ignore")
+    soup = BeautifulSoup(html, "html.parser", from_encoding="utf-8")
     langs = {}
     # Looks for links with href like "#cpf"
     for a in soup.select("a[href^='#']"):
@@ -19,12 +20,13 @@ def fetch_index():
         langs[code] = name
     return langs
 
+
 def fetch_twisters(code):
     url = f"{BASE_URL}/{code}.htm"
     resp = requests.get(url)
     resp.encoding = resp.apparent_encoding
-    html = resp.content.decode('utf-8', 'ignore')
-    soup = BeautifulSoup(html, 'html.parser', from_encoding='utf-8')
+    html = resp.content.decode("utf-8", "ignore")
+    soup = BeautifulSoup(html, "html.parser", from_encoding="utf-8")
 
     twisters = []
     for p in soup.select("p.TXT"):
@@ -39,6 +41,7 @@ def fetch_twisters(code):
             twisters.append(text)
 
     return twisters
+
 
 def main():
     langs = fetch_index()
@@ -67,6 +70,7 @@ def main():
         json.dump(sorted_result, f, ensure_ascii=False, indent=2)
 
     print(f"✅ Saved JSON file to {output_file}")
+
 
 if __name__ == "__main__":
     main()
