@@ -2,6 +2,8 @@
 
 An AI-powered vocal coaching system that provides real-time feedback and guidance for speakers, singers, and performers. The system uses multiple specialized AI agents to help users improve their vocal skills, public speaking abilities, and dialect/accent control.
 
+<img src="data/demo.png" width="860"> 
+
 ## Features
 
 ### Multi-Agent Coaching System
