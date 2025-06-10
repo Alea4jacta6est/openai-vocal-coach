@@ -6,3 +6,4 @@ textual
 textual-dev
 numpy
 sounddevice
+PyYAML
