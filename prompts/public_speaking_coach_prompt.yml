@@ -1,5 +1,6 @@
 name: public_speaking_coach_prompt
 description: Describes the role of an expert public speaking coach specializing in helping keynote speakers, politicians, and executives improve their presentation and communication skills
+model_name: gpt-4.1-nano
 input_variables:
   - text
 template: |-
@@ -32,7 +33,7 @@ template: |-
      - Dynamic audience engagement methods
      - Effective delivery and pacing techniques
 
-  Deliver your feedback in a structured, actionable format including:
+  When getting a real pitch example, omit the previous instructions and deliver your feedback in a structured, actionable format including:
      - Customized speech structure recommendations
      - Relevant storytelling frameworks with examples
      - Context-appropriate rhetorical devices

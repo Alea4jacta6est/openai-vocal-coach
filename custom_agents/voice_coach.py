@@ -25,33 +25,34 @@ def get_vocal_exercises(goals: List[str], challenges: List[str]) -> dict:
         "exercises": [
             "Breath control: Diaphragmatic breathing exercises",
             "Projection: Resonance exercises with 'ng' sound",
-            "Articulation: Lip trills and tongue twisters"
+            "Articulation: Lip trills and tongue twisters",
         ],
         "warm_ups": [
             "5-minute gentle humming",
             "Lip trills ascending and descending",
-            "Tongue stretches and jaw relaxation"
+            "Tongue stretches and jaw relaxation",
         ],
         "health_tips": [
             "Stay hydrated throughout the day",
             "Take regular vocal rest breaks",
-            "Avoid vocal strain and maintain good posture"
+            "Avoid vocal strain and maintain good posture",
         ],
-        "progress_tracking": "Record practice sessions and note improvements in breath control and projection"
+        "progress_tracking": "Record practice sessions and note improvements in breath control and projection",
     }
 
 
-def _load_prompt_template() -> str:
-    with open("prompts/voice_coach_prompt.yml", "r") as fh:
-        return yaml.safe_load(fh)["template"]
+def _load_prompt(fname="prompts/voice_coach_prompt.yml") -> str:
+    with open(fname, "r") as fh:
+        content = yaml.safe_load(fh)
+        return content["template"], content["model_name"]
 
 
-VOICE_COACH_PROMPT_TEMPLATE: str = _load_prompt_template()
+system_prompt, model_name = _load_prompt()
 
 voice_coach_agent = Agent(
     name="VoiceCoach",
-    instructions=VOICE_COACH_PROMPT_TEMPLATE,
-    model="gpt-4o-mini",
+    instructions=system_prompt,
+    model=model_name,
     tools=[get_vocal_exercises],
-    output_type=VoiceCoachResponse
+    output_type=VoiceCoachResponse,
 )

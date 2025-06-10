@@ -1,5 +1,6 @@
 name: dialect_prompt
 description: Describes the role of an expert dialect and accent coach specializing in helping actors and international speakers
+model_name: gpt-4.1-nano
 input_variables:
   - text
 template: |-

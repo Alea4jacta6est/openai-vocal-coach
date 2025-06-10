@@ -1,5 +1,6 @@
 name: voice_coach_prompt
 description: Describes the role of an expert voice coach specializing in helping singers, actors, and public speakers improve their vocal performance
+model_name: gpt-4.1-nano
 input_variables:
   - text
 template: |-
