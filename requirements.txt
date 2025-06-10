@@ -1,0 +1,8 @@
+openai-agents
+openai-agents[voice]
+openai
+python-dotenv
+textual
+textual-dev
+numpy
+sounddevice
