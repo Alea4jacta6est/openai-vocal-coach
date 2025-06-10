@@ -13,7 +13,6 @@ class PublicSpeakingResponse(BaseModel):
     body_language: List[str]
     practice_exercises: List[str]
     human_readable_response: str
-    
 
 
 @function_tool
@@ -27,37 +26,38 @@ def get_speaking_guidance(speech_type: str, goals: List[str]) -> dict:
         "structure": [
             "Strong opening hook",
             "Clear main points with supporting evidence",
-            "Compelling conclusion with call to action"
+            "Compelling conclusion with call to action",
         ],
         "rhetorical_devices": [
             "Anaphora for emphasis",
             "Metaphors for clarity",
-            "Rule of three for impact"
+            "Rule of three for impact",
         ],
         "body_language": [
             "Confident posture and stance",
             "Purposeful hand gestures",
-            "Eye contact with audience"
+            "Eye contact with audience",
         ],
         "practice_exercises": [
             "Record and review delivery",
             "Practice with varied pacing",
-            "Rehearse with different audience sizes"
-        ]
+            "Rehearse with different audience sizes",
+        ],
     }
 
 
-def _load_prompt_template() -> str:
-    with open("prompts/public_speaking_coach_prompt.yml", "r") as fh:
-        return yaml.safe_load(fh)["template"]
+def _load_prompt(fname="prompts/public_speaking_coach_prompt.yml") -> str:
+    with open(fname, "r") as fh:
+        content = yaml.safe_load(fh)
+        return content["template"], content["model_name"]
 
 
-PUBLIC_SPEAKING_PROMPT_TEMPLATE: str = _load_prompt_template()
+system_prompt, model_name = _load_prompt()
 
 public_speaking_agent = Agent(
     name="PublicSpeakingCoach",
-    instructions=PUBLIC_SPEAKING_PROMPT_TEMPLATE,
-    model="gpt-4o-mini",
-    tools=[get_speaking_guidance],
-    output_type=PublicSpeakingResponse
-) 
+    instructions=system_prompt,
+    model=model_name,
+    # tools=[get_speaking_guidance],
+    # output_type=PublicSpeakingResponse,
+)

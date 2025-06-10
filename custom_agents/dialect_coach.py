@@ -26,24 +26,30 @@ def get_twisters(language: str, improvements: str) -> dict:
             "language": language,
             "improvements": improvements,
             "twisters": [],
-            "reason": f"No tongue twisters found for {language}."
+            "reason": f"No tongue twisters found for {language}.",
         }
     selected = tws[:6]
-    reason = (
-       f"I selected these {language} tongue twisters because they help with: {improvements}."
-    )
-    return {"language": language, "improvements": improvements, "twisters": selected, "reason": reason}
+    reason = f"I selected these {language} tongue twisters because they help with: {improvements}."
+    return {
+        "language": language,
+        "improvements": improvements,
+        "twisters": selected,
+        "reason": reason,
+    }
 
-def _load_prompt_template() -> str:
-    with open("prompts/dialect_coach_prompt.yml", "r") as fh:
-        return yaml.safe_load(fh)["template"]
 
-DIALECT_PROMPT_TEMPLATE: str = _load_prompt_template()
+def _load_prompt(fname="prompts/dialect_coach_prompt.yml") -> str:
+    with open(fname, "r") as fh:
+        content = yaml.safe_load(fh)
+        return content["template"], content["model_name"]
+
+
+system_prompt, model_name = _load_prompt()
 
 dialect_agent = Agent(
     name="DialectCoach",
-    instructions=DIALECT_PROMPT_TEMPLATE,
-    model="gpt-4o-mini",
+    instructions=system_prompt,
+    model=model_name,
     tools=[get_twisters],
-    output_type=TwisterResponse
+    output_type=TwisterResponse,
 )

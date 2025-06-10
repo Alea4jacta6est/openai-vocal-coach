@@ -17,7 +17,7 @@ from agents.voice import StreamedAudioInput, VoicePipeline
 
 if TYPE_CHECKING:
     # For type checking, use the relative import
-    from .my_workflow import MyWorkflow
+    from .workflows.my_workflow import MyWorkflow
 else:
     # At runtime, try both import styles
     try:
