@@ -1,5 +1,21 @@
 from __future__ import annotations
 
+"""Multi-Agent Voice Assistant App
+
+This app combines the existing multi-agent coaching system with a voice-first
+Textual UI. It lets you speak a request, routes the transcription through your
+triage agent to pick the right specialist coach, streams the chosen coach’s
+response back as synthesised audio, and shows the full conversation in a Rich
+log panel.
+
+Controls:
+  K   Toggle microphone recording on/off
+  Q   Quit the application
+
+Environment variables should live in an `.env` file and include whatever API
+keys or settings your speech and agent services need.
+"""
+
 import asyncio
 from typing import TYPE_CHECKING
 
@@ -9,128 +25,81 @@ from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.reactive import reactive
-from textual.widgets import Button, RichLog, Static
-from typing_extensions import override
-from workflows.my_workflow import MyWorkflow
-from agents.voice import StreamedAudioInput, VoicePipeline
+from textual.widgets import RichLog, Static
 from dotenv import load_dotenv
 
+# ---------------------------------------------------------------------------
+# Load env vars (OpenAI keys etc.)
+# ---------------------------------------------------------------------------
 load_dotenv()
-# Import MyWorkflow class - handle both module and package use cases
-# if TYPE_CHECKING:
-#     # For type checking, use the relative import
-#     from .workflows.my_workflow import MyWorkflow
-# else:
-#     # At runtime, try both import styles
-#     try:
-#         # Try relative import first (when used as a package)
-#         from .my_workflow import MyWorkflow
-#     except ImportError:
-#         # Fall back to direct import (when run as a script)
-#         from my_workflow import MyWorkflow
 
-CHUNK_LENGTH_S = 0.05  # 100ms
-SAMPLE_RATE = 24000
+# ---------------------------------------------------------------------------
+# Your existing agents
+# ---------------------------------------------------------------------------
+from agents import Runner  # type: ignore
+from custom_agents.dialect_coach import dialect_agent  # type: ignore
+from custom_agents.public_speaking_coach import public_speaking_agent  # type: ignore
+from custom_agents.voice_coach import voice_coach_agent  # type: ignore
+from custom_agents.triage_agent import triage_agent  # type: ignore
+
+# ---------------------------------------------------------------------------
+# Voice pipeline pieces
+# ---------------------------------------------------------------------------
+from agents.voice import StreamedAudioInput, VoicePipeline  # type: ignore
+from workflows.my_workflow import MyWorkflow  # type: ignore
+
+# ---------------------------------------------------------------------------
+# Audio constants
+# ---------------------------------------------------------------------------
+CHUNK_LENGTH_S = 0.05  # 50 ms
+SAMPLE_RATE = 24_000
 FORMAT = np.int16
 CHANNELS = 1
 
+# Mapping from triage key → specialised agent
+AGENT_MAP = {
+    "dialect_coach": dialect_agent,
+    "public_speaking_coach": public_speaking_agent,
+    "voice_coach": voice_coach_agent,
+}
+
+# =============================================================================
+#                               UI widgets
+# =============================================================================
 
 class Header(Static):
-    """A header widget."""
+    session_id: reactive[str] = reactive("")
 
-    session_id = reactive("")
-
-    @override
-    def render(self) -> str:
-        return "Speak to the agent. When you stop speaking, it will respond."
+    def render(self) -> str:  # type: ignore[override]
+        return "🎙  Speak to your Multi-Agent Coach   (K = record, Q = quit)"
 
 
 class AudioStatusIndicator(Static):
-    """A widget that shows the current audio recording status."""
+    is_recording: reactive[bool] = reactive(False)
 
-    is_recording = reactive(False)
-
-    @override
-    def render(self) -> str:
-        status = (
-            "🔴 Recording... (Press K to stop)"
-            if self.is_recording
-            else "⚪ Press K to start recording (Q to quit)"
-        )
-        return status
+    def render(self) -> str:  # type: ignore[override]
+        return "🔴 Recording… (K to stop)" if self.is_recording else "⚪ Idle. Press K to record"
 
 
-class RealtimeApp(App[None]):
+# =============================================================================
+#                             Main Application
+# =============================================================================
+
+class CoachingApp(App[None]):
+    """Voice-first interface to the agent ecosystem."""
+
     CSS = """
-        Screen {
-            background: #1a1b26;  /* Dark blue-grey background */
-        }
-
-        Container {
-            border: double rgb(91, 164, 91);
-        }
-
-        Horizontal {
-            width: 100%;
-        }
-
-        #input-container {
-            height: 5;  /* Explicit height for input container */
-            margin: 1 1;
-            padding: 1 2;
-        }
-
-        Input {
-            width: 80%;
-            height: 3;  /* Explicit height for input */
-        }
-
-        Button {
-            width: 20%;
-            height: 3;  /* Explicit height for button */
-        }
-
-        #bottom-pane {
-            width: 100%;
-            height: 82%;  /* Reduced to make room for session display */
-            border: round rgb(205, 133, 63);
-            content-align: center middle;
-        }
-
-        #status-indicator {
-            height: 3;
-            content-align: center middle;
-            background: #2a2b36;
-            border: solid rgb(91, 164, 91);
-            margin: 1 1;
-        }
-
-        #session-display {
-            height: 3;
-            content-align: center middle;
-            background: #2a2b36;
-            border: solid rgb(91, 164, 91);
-            margin: 1 1;
-        }
-
-        Static {
-            color: white;
-        }
+    Screen { background: #1a1b26; }
+    Container { border: double rgb(91,164,91); }
+    #bottom-pane { width: 100%; height: 90%; border: round rgb(205,133,63); padding: 1; }
+    #status-indicator { height: 3; content-align: center middle; background: #2a2b36; }
+    Static { color: white; }
     """
-
-    should_send_audio: asyncio.Event
-    audio_player: sd.OutputStream
-    last_audio_item_id: str | None
-    connected: asyncio.Event
 
     def __init__(self) -> None:
         super().__init__()
-        self.last_audio_item_id = None
-        self.should_send_audio = asyncio.Event()
-        self.connected = asyncio.Event()
-        self.pipeline = VoicePipeline(
-            workflow=MyWorkflow(secret_word="dog", on_start=self._on_transcription)
-        )
+
+        # Mic input stream + audio out
         self._audio_input = StreamedAudioInput()
         self.audio_player = sd.OutputStream(
             samplerate=SAMPLE_RATE,
@@ -138,100 +107,126 @@ class RealtimeApp(App[None]):
             dtype=FORMAT,
         )
 
-    def _on_transcription(self, transcription: str) -> None:
-        try:
-            self.query_one("#bottom-pane", RichLog).write(
-                f"Transcription: {transcription}"
-            )
-        except Exception:
-            pass
+        # Event used by key-toggle to gate sending mic chunks
+        self.should_send_audio = asyncio.Event()
 
-    @override
-    def compose(self) -> ComposeResult:
-        """Create child widgets for the app."""
+        # Voice pipeline = STT → callback → TTS
+        self.pipeline = VoicePipeline(
+            workflow=MyWorkflow(secret_word="dog", on_start=self._on_transcription)
+        )
+
+    # -------------------- UI layout --------------------
+
+    def compose(self) -> ComposeResult:  # type: ignore[override]
         with Container():
-            yield Header(id="session-display")
+            yield Header(id="header")
             yield AudioStatusIndicator(id="status-indicator")
             yield RichLog(id="bottom-pane", wrap=True, highlight=True, markup=True)
 
-    async def on_mount(self) -> None:
-        self.run_worker(self.start_voice_pipeline())
-        self.run_worker(self.send_mic_audio())
+    async def on_mount(self) -> None:  # type: ignore[override]
+        self.run_worker(self._start_voice_pipeline())
+        self.run_worker(self._capture_mic_audio())
 
-    async def start_voice_pipeline(self) -> None:
-        try:
-            self.audio_player.start()
-            self.result = await self.pipeline.run(self._audio_input)
+    # ==================================================
+    # Worker: Capture microphone audio
+    # ==================================================
 
-            async for event in self.result.stream():
-                bottom_pane = self.query_one("#bottom-pane", RichLog)
-                if event.type == "voice_stream_event_audio":
-                    self.audio_player.write(event.data)
-                    bottom_pane.write(
-                        f"Received audio: {len(event.data) if event.data is not None else '0'} bytes"
-                    )
-                elif event.type == "voice_stream_event_lifecycle":
-                    bottom_pane.write(f"Lifecycle event: {event.event}")
-        except Exception as e:
-            bottom_pane = self.query_one("#bottom-pane", RichLog)
-            bottom_pane.write(f"Error: {e}")
-        finally:
-            self.audio_player.close()
-
-    async def send_mic_audio(self) -> None:
-        device_info = sd.query_devices()
-        print(device_info)
-
-        read_size = int(SAMPLE_RATE * 0.02)
-
+    async def _capture_mic_audio(self) -> None:
+        read_size = int(SAMPLE_RATE * CHUNK_LENGTH_S)
         stream = sd.InputStream(
             channels=CHANNELS,
             samplerate=SAMPLE_RATE,
-            dtype="int16",
+            dtype=FORMAT,
         )
         stream.start()
 
-        status_indicator = self.query_one(AudioStatusIndicator)
+        status = self.query_one(AudioStatusIndicator)
 
         try:
             while True:
-                if stream.read_available < read_size:
-                    await asyncio.sleep(0)
+                if not self.should_send_audio.is_set():
+                    status.is_recording = False
+                    await asyncio.sleep(0.05)
                     continue
 
-                await self.should_send_audio.wait()
-                status_indicator.is_recording = True
+                status.is_recording = True
+
+                if stream.read_available < read_size:
+                    await asyncio.sleep(0.0)
+                    continue
 
                 data, _ = stream.read(read_size)
-
                 await self._audio_input.add_audio(data)
-                await asyncio.sleep(0)
-        except KeyboardInterrupt:
+        except asyncio.CancelledError:
             pass
         finally:
-            stream.stop()
-            stream.close()
+            stream.stop(); stream.close(); status.is_recording = False
 
-    async def on_key(self, event: events.Key) -> None:
-        """Handle key press events."""
-        if event.key == "enter":
-            self.query_one(Button).press()
-            return
+    # ==================================================
+    # Worker: Listen to pipeline events (audio + lifecycle)
+    # ==================================================
 
+    async def _start_voice_pipeline(self) -> None:
+        bottom_pane = self.query_one("#bottom-pane", RichLog)
+        try:
+            self.audio_player.start()
+            pipeline_result = await self.pipeline.run(self._audio_input)
+            async for event in pipeline_result.stream():
+                if event.type == "voice_stream_event_audio":
+                    # Fix: event.data is a NumPy array – checking its truth value directly is ambiguous
+                    if event.data is not None and getattr(event.data, "size", 0):
+                        self.audio_player.write(event.data)
+                elif event.type == "voice_stream_event_lifecycle":
+                    bottom_pane.write(f"[italic cyan]• Pipeline:[/] {event.event}")
+        except Exception as exc:  # noqa: BLE001
+            bottom_pane.write(f"[red]Voice pipeline error:[/] {exc}")
+        finally:
+            self.audio_player.close()
+
+    # ==================================================
+    # Callback: Finalised transcription ready
+    # ==================================================
+
+    async def _on_transcription(self, transcription: str) -> None:
+        bottom_pane = self.query_one("#bottom-pane", RichLog)
+        bottom_pane.write(f"[bold yellow]You:[/] {transcription}")
+
+        # 1️⃣  Triage → pick coach
+        triage_result = await Runner.run(triage_agent, transcription)
+        agent_key = triage_result.final_output.selected_agent
+        bottom_pane.write(
+            f"[italic cyan]• Triage selected:[/] {agent_key} — {triage_result.final_output.reasoning}"
+        )
+
+        # 2️⃣  Get coach reply
+        agent = AGENT_MAP[agent_key]
+        agent_result = await Runner.run(agent, transcription)
+        assistant_reply = agent_result.final_output
+        bottom_pane.write(f"[bold green]{agent_key.replace('_', ' ').title()}:[/] {assistant_reply}")
+
+        # 3️⃣  Speak reply (if VoicePipeline exposes TTS method)
+        speak = getattr(self.pipeline, "say", None)
+        if callable(speak):
+            await speak(assistant_reply)  # type: ignore[arg-type]
+        else:
+            bottom_pane.write("[red]⚠️  No TTS capability in VoicePipeline.[/]")
+
+    # -------------------- Keybindings --------------------
+
+    async def on_key(self, event: events.Key) -> None:  # type: ignore[override]
         if event.key == "q":
-            self.exit()
-            return
-
+            self.exit(); return
         if event.key == "k":
-            status_indicator = self.query_one(AudioStatusIndicator)
-            if status_indicator.is_recording:
+            # Toggle mic recording
+            if self.should_send_audio.is_set():
                 self.should_send_audio.clear()
-                status_indicator.is_recording = False
             else:
                 self.should_send_audio.set()
-                status_indicator.is_recording = True
 
+
+# ---------------------------------------------------------------------------
+# Entrypoint
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    app = RealtimeApp()
-    app.run()
+    CoachingApp().run()
