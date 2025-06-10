@@ -17,15 +17,15 @@ from agents.voice import StreamedAudioInput, VoicePipeline
 
 if TYPE_CHECKING:
     # For type checking, use the relative import
-    from .my_workflow import MyWorkflow
+    from workflows.my_workflow import MyWorkflow
 else:
     # At runtime, try both import styles
     try:
         # Try relative import first (when used as a package)
-        from .my_workflow import MyWorkflow
+        from workflows.my_workflow import MyWorkflow
     except ImportError:
         # Fall back to direct import (when run as a script)
-        from my_workflow import MyWorkflow
+        from workflows.my_workflow import MyWorkflow
 
 CHUNK_LENGTH_S = 0.05  # 100ms
 SAMPLE_RATE = 24000

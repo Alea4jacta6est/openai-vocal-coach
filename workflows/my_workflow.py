@@ -7,6 +7,7 @@ load_dotenv()
 from agents import Agent, Runner, TResponseInputItem, function_tool
 from agents.extensions.handoff_prompt import prompt_with_handoff_instructions
 from agents.voice import VoiceWorkflowBase, VoiceWorkflowHelper
+from custom_agents.triage_agent import triage_agent
 
 
 
@@ -19,7 +20,7 @@ class MyWorkflow(VoiceWorkflowBase):
                 is passed in as an argument.
         """
         self._input_history: list[TResponseInputItem] = []
-        self._current_agent = agent
+        self._current_agent = triage_agent
         self._secret_word = secret_word.lower()
         self._on_start = on_start
 
